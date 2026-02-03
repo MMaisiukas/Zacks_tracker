@@ -19,7 +19,33 @@ HEADERS = {
     )
 }
 
-DEFAULT_TICKERS = ["AAPL", "MSFT", "NVDA", "TSLA", "FIGR", "AMZN", "GOOGL", "META", "JNJ", "JPM"]
+DEFAULT_TICKERS = [
+"PM", 
+"GOOGL", 
+"META", 
+"ULTA", 
+"GS", 
+"FSUN", 
+"AMZN", 
+"AAPL", 
+"JPM", 
+"SANM", 
+"NVDA", 
+"IBM", 
+"LRCX", 
+"PLTR", 
+"UBER", 
+"AVGO", 
+"MSFT", 
+"ADBE", 
+"CRM", 
+"SPOT", 
+"FIGR", 
+"SHOP", 
+"AXON", 
+"DUOL", 
+"NFLX"
+]
 
 # -----------------------------
 # SCRAPER FUNCTION
