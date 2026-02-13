@@ -19,10 +19,10 @@ HEADERS = {
 }
 
 DEFAULT_TICKERS = [
-"LTM","PINE","EZPW","WWD","PAX","FOX","PM","GOOGL","META","ULTA",
-"GS","FSUN","AMZN","AAPL","JPM","SANM","NVDA","IBM","LRCX",
-"PLTR","UBER","AVGO","MSFT","ADBE","CRM","SPOT","FIGR","SHOP",
-"AXON","DUOL","NFLX"
+    "LTM","PINE","EZPW","WWD","PAX","FOX","PM","GOOGL","META","ULTA",
+    "GS","FSUN","AMZN","AAPL","JPM","SANM","NVDA","IBM","LRCX",
+    "PLTR","UBER","AVGO","MSFT","ADBE","CRM","SPOT","FIGR","SHOP",
+    "AXON","DUOL","NFLX"
 ]
 
 # -----------------------------
@@ -93,6 +93,15 @@ def text_color_change(val):
         return "color:#cc0000; font-weight:bold"
     return ""
 
+def text_color_target(val, current_price):
+    if pd.isna(val) or pd.isna(current_price):
+        return ""
+    if val > current_price:
+        return "color:#00cc00; font-weight:bold"
+    elif val < current_price:
+        return "color:#cc0000; font-weight:bold"
+    return ""
+
 # -----------------------------
 # Convert numeric mean to text
 # -----------------------------
@@ -152,6 +161,7 @@ if st.button("Fetch Data"):
                 today_price = None
                 price_change = None
                 analyst_mean = None
+                target_price = None
                 company_name = None
 
                 try:
@@ -160,7 +170,8 @@ if st.button("Fetch Data"):
 
                     company_name = info.get("shortName")
 
-                    hist = stock.history(period="5d")  # ensure at least 2 valid closes
+                    # --- Use history() instead of regularMarketPrice for reliability ---
+                    hist = stock.history(period="5d")
                     close_prices = hist["Close"].dropna().tail(2)
 
                     if len(close_prices) == 2:
@@ -178,6 +189,7 @@ if st.button("Fetch Data"):
                         price_change = None
 
                     analyst_mean = info.get("recommendationMean")
+                    target_price = info.get("targetMeanPrice")
 
                 except:
                     pass
@@ -189,6 +201,7 @@ if st.button("Fetch Data"):
                     "Company": company_name,
                     "Zacks Rank": rank_text,
                     "Yahoo Avg Rating": yahoo_display,
+                    "Yahoo Target": target_price,
                     "Current Price": today_price,
                     "Today % Change": price_change,
                     "Zacks Numeric": rank_num
@@ -202,6 +215,7 @@ if st.button("Fetch Data"):
                 "Company",
                 "Zacks Rank",
                 "Yahoo Avg Rating",
+                "Yahoo Target",
                 "Current Price",
                 "Today % Change"
             ]]
@@ -211,10 +225,12 @@ if st.button("Fetch Data"):
         styled_df = df_display.style \
             .applymap(text_color_zacks, subset=["Zacks Rank"]) \
             .applymap(text_color_yahoo, subset=["Yahoo Avg Rating"]) \
+            .applymap(lambda x: text_color_target(x, df_display.loc[df_display['Yahoo Target']==x,'Current Price'].values[0] if not pd.isna(x) else None), subset=["Yahoo Target"]) \
             .applymap(text_color_change, subset=["Today % Change"]) \
             .format({
                 "Current Price": lambda x: f"${x:.2f}" if pd.notna(x) else "-",
-                "Today % Change": lambda x: f"{x:+.2f}%" if pd.notna(x) else "-"
+                "Today % Change": lambda x: f"{x:+.2f}%" if pd.notna(x) else "-",
+                "Yahoo Target": lambda x: f"${x:.2f}" if pd.notna(x) else "-"
             })
 
         st.dataframe(styled_df, use_container_width=True)
