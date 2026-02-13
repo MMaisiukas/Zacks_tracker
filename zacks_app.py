@@ -5,7 +5,6 @@ import pandas as pd
 import re
 import time
 import yfinance as yf
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # -----------------------------
 # CONFIG
@@ -35,7 +34,7 @@ def get_zacks_rank(ticker):
         r = requests.get(url, headers=HEADERS, timeout=10)
         r.raise_for_status()
     except:
-        return ticker, None, None
+        return None, None
 
     soup = BeautifulSoup(r.text, "html.parser")
     text = soup.get_text(separator=" ")
@@ -44,9 +43,10 @@ def get_zacks_rank(ticker):
 
     if match:
         rank_num = int(match.group(1))
-        rank_text = f"{rank_num} - {match.group(2)}"
-        return ticker, rank_num, rank_text
-    return ticker, None, None
+        rank_word = match.group(2)
+        return rank_num, f"{rank_num} - {rank_word}"
+
+    return None, None
 
 # -----------------------------
 # TEXT COLOR FUNCTIONS
@@ -98,11 +98,11 @@ def text_color_change(val):
 # -----------------------------
 def yahoo_rating_text(val):
     if pd.isna(val):
-        return "N/A"
+        return "-"
     try:
         num = float(val)
     except:
-        return "N/A"
+        return "-"
     if num < 1.5:
         txt = "Strong Buy"
     elif num < 2.5:
@@ -142,18 +142,13 @@ if st.button("Fetch Data"):
 
             rows = []
 
-            # ----- PARALLEL ZACKS SCRAPING -----
-            zacks_results = {}
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                futures = [executor.submit(get_zacks_rank, t) for t in tickers]
-                for future in as_completed(futures):
-                    t, rank_num, rank_text = future.result()
-                    zacks_results[t] = (rank_num, rank_text)
-
-            # ----- FETCH YAHOO FINANCE -----
             for t in tickers:
-                rank_num, rank_text = zacks_results.get(t, (None, None))
 
+                # ----- Zacks -----
+                rank_num, rank_text = get_zacks_rank(t)
+                time.sleep(0.8)
+
+                # ----- Yahoo Finance per-ticker -----
                 today_price = None
                 price_change = None
                 analyst_mean = None
@@ -161,18 +156,28 @@ if st.button("Fetch Data"):
 
                 try:
                     stock = yf.Ticker(t)
-                    # Use fast_info for reliable cloud price fetch
-                    fast = getattr(stock, "fast_info", {})
-                    today_price = fast.get("last_price", None)
-                    prev_close = fast.get("previous_close", None)
-                    if today_price is not None and prev_close is not None:
-                        price_change = (today_price - prev_close) / prev_close * 100
+                    info = stock.info
+
+                    company_name = info.get("shortName")
+
+                    hist = stock.history(period="5d")  # ensure at least 2 valid closes
+                    close_prices = hist["Close"].dropna().tail(2)
+
+                    if len(close_prices) == 2:
+                        prev_close = close_prices.iloc[0]
+                        today_price = close_prices.iloc[1]
+                        if prev_close != 0:
+                            price_change = (today_price - prev_close) / prev_close * 100
+                        else:
+                            price_change = None
+                    elif len(close_prices) == 1:
+                        today_price = close_prices.iloc[0]
+                        price_change = None
                     else:
+                        today_price = None
                         price_change = None
 
-                    info = stock.info
-                    company_name = info.get("shortName", None)
-                    analyst_mean = info.get("recommendationMean", None)
+                    analyst_mean = info.get("recommendationMean")
 
                 except:
                     pass
@@ -203,14 +208,13 @@ if st.button("Fetch Data"):
 
         st.success("✅ Done!")
 
-        # ----- STYLED DATAFRAME -----
         styled_df = df_display.style \
-            .map(text_color_zacks, subset=["Zacks Rank"]) \
-            .map(text_color_yahoo, subset=["Yahoo Avg Rating"]) \
-            .map(text_color_change, subset=["Today % Change"]) \
+            .applymap(text_color_zacks, subset=["Zacks Rank"]) \
+            .applymap(text_color_yahoo, subset=["Yahoo Avg Rating"]) \
+            .applymap(text_color_change, subset=["Today % Change"]) \
             .format({
                 "Current Price": lambda x: f"${x:.2f}" if pd.notna(x) else "-",
                 "Today % Change": lambda x: f"{x:+.2f}%" if pd.notna(x) else "-"
             })
 
-        st.dataframe(styled_df, width="stretch")
+        st.dataframe(styled_df, use_container_width=True)
