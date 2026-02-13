@@ -2,6 +2,4 @@ streamlit
 requests
 beautifulsoup4
 pandas
-re
-time
 yfinance
