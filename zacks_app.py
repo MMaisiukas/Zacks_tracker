@@ -19,10 +19,10 @@ HEADERS = {
 }
 
 DEFAULT_TICKERS = [
-    "LTM","PINE","EZPW","WWD","PAX","FOX","PM","GOOGL","META","ULTA",
-    "GS","FSUN","AMZN","AAPL","JPM","SANM","NVDA","IBM","LRCX",
+    "LTM","WWD","FOX","PM","META","ULTA",
+    "AMZN","AAPL","JPM","SANM","NVDA","IBM","LRCX",
     "PLTR","UBER","AVGO","MSFT","ADBE","CRM","SPOT","FIGR","SHOP",
-    "AXON","DUOL","NFLX"
+    "AXON","NFLX","CNC","IREN","INFQ","BTSG","HRTG","FIX","ONTO","KEYS"
 ]
 
 # -----------------------------
