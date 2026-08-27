@@ -129,23 +129,41 @@ def fetch_batched_prices(ticker_tuple):
             prices[t] = (None, None)
     return prices
 
-def get_yahoo_info(ticker):
-    try:
-        stock = yf.Ticker(ticker)
-        info = stock.info
-        return ticker, info.get("shortName"), info.get("recommendationMean"), info.get("targetMeanPrice")
-    except Exception:
-        return ticker, None, None, None
+# Yahoo's unofficial API tends to rate-limit (or silently return empty data)
+# when hit with a burst of concurrent requests - especially on shared IPs like
+# Streamlit Cloud's. Fewer workers, a small random delay, and a retry on
+# failure make it much less likely to trip that.
+YAHOO_MAX_WORKERS = 2
+
+def get_yahoo_info(ticker, attempts=2):
+    last_error = None
+    for attempt in range(attempts):
+        time.sleep(random.uniform(0.4, 1.0))
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            if not info or info.get("regularMarketPrice") is None and info.get("shortName") is None:
+                # Empty/near-empty dict usually means Yahoo blocked or throttled this request,
+                # not that the ticker has no data - worth retrying once.
+                last_error = "Empty response from Yahoo (likely rate-limited)"
+                continue
+            return ticker, info.get("shortName"), info.get("recommendationMean"), info.get("targetMeanPrice"), None
+        except Exception as e:
+            last_error = f"{type(e).__name__}: {e}"
+    return ticker, None, None, None, last_error
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_all_yahoo_info(ticker_tuple):
     results = {}
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+    errors = {}
+    with ThreadPoolExecutor(max_workers=YAHOO_MAX_WORKERS) as executor:
         futures = [executor.submit(get_yahoo_info, t) for t in ticker_tuple]
         for future in as_completed(futures):
-            ticker, name, rec_mean, target = future.result()
+            ticker, name, rec_mean, target, error = future.result()
             results[ticker] = (name, rec_mean, target)
-    return results
+            if error:
+                errors[ticker] = error
+    return results, errors
 
 # -----------------------------
 # TEXT COLOR FUNCTIONS
@@ -278,7 +296,7 @@ if fetch_clicked:
 
             zacks_results = fetch_all_zacks(ticker_tuple)
             price_results = fetch_batched_prices(ticker_tuple)
-            yahoo_results = fetch_all_yahoo_info(ticker_tuple)
+            yahoo_results, yahoo_errors = fetch_all_yahoo_info(ticker_tuple)
 
             rows = []
             for t in tickers:
@@ -313,6 +331,18 @@ if fetch_clicked:
             ]]
 
         st.success("✅ Done!")
+
+        if yahoo_errors:
+            with st.expander(f"⚠️ Yahoo data missing for {len(yahoo_errors)} ticker(s) - click for details"):
+                for t, err in yahoo_errors.items():
+                    st.write(f"**{t}**: {err}")
+                st.caption(
+                    "If most/all of these say 'Empty response' or mention rate limiting, "
+                    "Yahoo is temporarily throttling this app - try again in a few minutes "
+                    "with fewer tickers. If they show a different error (e.g. about a 'crumb' "
+                    "or authentication), that's a Yahoo API change and the yfinance library "
+                    "likely needs updating."
+                )
 
         styled_df = df_display.style \
             .map(text_color_zacks, subset=["Zacks Rank"]) \
