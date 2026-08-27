@@ -223,10 +223,10 @@ if st.button("Fetch Data"):
         st.success("✅ Done!")
 
         styled_df = df_display.style \
-            .applymap(text_color_zacks, subset=["Zacks Rank"]) \
-            .applymap(text_color_yahoo, subset=["Yahoo Avg Rating"]) \
-            .applymap(lambda x: text_color_target(x, df_display.loc[df_display['Yahoo Target']==x,'Current Price'].values[0] if not pd.isna(x) else None), subset=["Yahoo Target"]) \
-            .applymap(text_color_change, subset=["Today % Change"]) \
+            .map(text_color_zacks, subset=["Zacks Rank"]) \
+            .map(text_color_yahoo, subset=["Yahoo Avg Rating"]) \
+            .map(lambda x: text_color_target(x, df_display.loc[df_display['Yahoo Target']==x,'Current Price'].values[0] if not pd.isna(x) else None), subset=["Yahoo Target"]) \
+            .map(text_color_change, subset=["Today % Change"]) \
             .format({
                 "Current Price": lambda x: f"${x:.2f}" if pd.notna(x) else "-",
                 "Today % Change": lambda x: f"{x:+.2f}%" if pd.notna(x) else "-",
